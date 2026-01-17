@@ -42,8 +42,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/gostreamhls.git
-cd gostreamhls
+git clone https://github.com/namecloudz/RTMP-to-HLS.git
+cd RTMP-to-HLS
 
 # Download dependencies
 go mod tidy
