@@ -54,10 +54,17 @@ type App struct {
 	httpPortInput widget.Editor
 	rtmpPortInput widget.Editor
 
+	// SSL widgets
+	sslToggle     widget.Bool
+	domainInput   widget.Editor
+	certPathInput widget.Editor
+	keyPathInput  widget.Editor
+
 	// State
-	running  bool
-	rtmpAddr string
-	httpAddr string
+	running    bool
+	rtmpAddr   string
+	httpAddr   string
+	sslEnabled bool
 }
 
 // NewApp creates a new application
@@ -83,6 +90,16 @@ func NewApp() *App {
 	a.rtmpPortInput.SetText(cfg.RTMPPort)
 	a.rtmpPortInput.SingleLine = true
 
+	// Initialize SSL settings
+	a.sslToggle.Value = cfg.SSLEnabled
+	a.sslEnabled = cfg.SSLEnabled
+	a.domainInput.SetText(cfg.SSLDomain)
+	a.domainInput.SingleLine = true
+	a.certPathInput.SetText(cfg.SSLCert)
+	a.certPathInput.SingleLine = true
+	a.keyPathInput.SetText(cfg.SSLKey)
+	a.keyPathInput.SingleLine = true
+
 	// Configure theme
 	a.theme.Palette.Bg = bgColor
 	a.theme.Palette.Fg = textColor
@@ -93,7 +110,7 @@ func NewApp() *App {
 // Run starts the application
 func (a *App) Run() error {
 	a.window.Option(
-		app.Title("🎬 RTMP to HLS Streaming Server"),
+		app.Title("🎬 Name RTMP to HLS Streaming Server"),
 		app.Size(unit.Dp(1000), unit.Dp(700)),
 	)
 
@@ -140,19 +157,25 @@ func (a *App) layout(gtx layout.Context) layout.Dimensions {
 				return a.layoutHeader(gtx)
 			}),
 			// Spacer
-			layout.Rigid(layout.Spacer{Height: unit.Dp(20)}.Layout),
+			layout.Rigid(layout.Spacer{Height: unit.Dp(16)}.Layout),
 			// Status cards row
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.layoutStatusCards(gtx)
 			}),
 			// Spacer
-			layout.Rigid(layout.Spacer{Height: unit.Dp(20)}.Layout),
+			layout.Rigid(layout.Spacer{Height: unit.Dp(16)}.Layout),
 			// Config and controls
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.layoutConfigSection(gtx)
 			}),
 			// Spacer
-			layout.Rigid(layout.Spacer{Height: unit.Dp(20)}.Layout),
+			layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
+			// SSL Config section
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return a.layoutSSLSection(gtx)
+			}),
+			// Spacer
+			layout.Rigid(layout.Spacer{Height: unit.Dp(16)}.Layout),
 			// Streams and logs
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				return a.layoutMainContent(gtx)
@@ -288,6 +311,100 @@ func (a *App) layoutConfigSection(gtx layout.Context) layout.Dimensions {
 					}),
 				)
 			})
+		}),
+	)
+}
+
+func (a *App) layoutSSLSection(gtx layout.Context) layout.Dimensions {
+	// Update sslEnabled from toggle
+	if a.sslToggle.Update(gtx) {
+		a.sslEnabled = a.sslToggle.Value
+	}
+
+	return layout.Stack{}.Layout(gtx,
+		// Background
+		layout.Expanded(func(gtx layout.Context) layout.Dimensions {
+			bounds := image.Rect(0, 0, gtx.Constraints.Max.X, gtx.Dp(unit.Dp(70)))
+			rr := gtx.Dp(unit.Dp(12))
+			paint.FillShape(gtx.Ops, cardColor, clip.UniformRRect(bounds, rr).Op(gtx.Ops))
+			return layout.Dimensions{Size: image.Point{X: gtx.Constraints.Max.X, Y: gtx.Dp(unit.Dp(70))}}
+		}),
+		// Content
+		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(unit.Dp(14)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Spacing: layout.SpaceEvenly}.Layout(gtx,
+					// SSL Toggle
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								icon := "🔓"
+								if a.sslEnabled {
+									icon = "🔒"
+								}
+								label := material.Body2(a.theme, icon+" HTTPS")
+								label.Color = textMuted
+								return layout.Inset{Right: unit.Dp(8)}.Layout(gtx, label.Layout)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								sw := material.Switch(a.theme, &a.sslToggle, "Enable SSL")
+								if a.running {
+									return layout.Dimensions{}
+								}
+								return sw.Layout(gtx)
+							}),
+						)
+					}),
+					// Domain input
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.layoutSSLInput(gtx, "Domain", &a.domainInput, "example.com", !a.running && a.sslEnabled)
+					}),
+					// Cert path
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.layoutSSLInput(gtx, "Cert", &a.certPathInput, "cert.pem", !a.running && a.sslEnabled)
+					}),
+					// Key path
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.layoutSSLInput(gtx, "Key", &a.keyPathInput, "key.pem", !a.running && a.sslEnabled)
+					}),
+				)
+			})
+		}),
+	)
+}
+
+func (a *App) layoutSSLInput(gtx layout.Context, label string, editor *widget.Editor, hint string, enabled bool) layout.Dimensions {
+	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			lbl := material.Caption(a.theme, label)
+			lbl.Color = textMuted
+			return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, lbl.Layout)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Stack{}.Layout(gtx,
+				layout.Expanded(func(gtx layout.Context) layout.Dimensions {
+					bgCol := inputBgColor
+					if !enabled {
+						bgCol = color.NRGBA{R: 25, G: 28, B: 40, A: 255}
+					}
+					bounds := image.Rect(0, 0, gtx.Dp(unit.Dp(120)), gtx.Dp(unit.Dp(32)))
+					rr := gtx.Dp(unit.Dp(6))
+					paint.FillShape(gtx.Ops, bgCol, clip.UniformRRect(bounds, rr).Op(gtx.Ops))
+					return layout.Dimensions{Size: image.Point{X: gtx.Dp(unit.Dp(120)), Y: gtx.Dp(unit.Dp(32))}}
+				}),
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Min.X = gtx.Dp(unit.Dp(104))
+						ed := material.Editor(a.theme, editor, hint)
+						if enabled {
+							ed.Color = textColor
+						} else {
+							ed.Color = textMuted
+						}
+						ed.HintColor = textMuted
+						return ed.Layout(gtx)
+					})
+				}),
+			)
 		}),
 	)
 }
@@ -467,20 +584,42 @@ func (a *App) start() {
 		rtmpPort = "1935"
 	}
 
+	// Get SSL settings
+	sslDomain := strings.TrimSpace(a.domainInput.Text())
+	sslCert := strings.TrimSpace(a.certPathInput.Text())
+	sslKey := strings.TrimSpace(a.keyPathInput.Text())
+
+	if sslCert == "" {
+		sslCert = "cert.pem"
+	}
+	if sslKey == "" {
+		sslKey = "key.pem"
+	}
+
 	a.rtmpAddr = ":" + rtmpPort
 	a.httpAddr = "0.0.0.0:" + httpPort
 
-	// Save config for next time
+	// Save config for next time (including SSL settings)
 	config.Save(config.Config{
-		HTTPPort: httpPort,
-		RTMPPort: rtmpPort,
+		HTTPPort:   httpPort,
+		RTMPPort:   rtmpPort,
+		SSLEnabled: a.sslEnabled,
+		SSLDomain:  sslDomain,
+		SSLCert:    sslCert,
+		SSLKey:     sslKey,
 	})
 
 	// Create new servers with configured ports
 	a.manager = server.NewManager("./hls")
 	a.rtmp = server.NewRTMPServer(a.rtmpAddr, a.manager)
 	a.http = server.NewHTTPServer(a.httpAddr, a.manager)
-	a.dashboard = NewDashboard(a.manager, "localhost:"+httpPort)
+
+	// Set dashboard display URL
+	displayHost := "localhost:" + httpPort
+	if sslDomain != "" && a.sslEnabled {
+		displayHost = sslDomain
+	}
+	a.dashboard = NewDashboard(a.manager, displayHost)
 
 	logger.Info("Starting streaming server...")
 
@@ -489,8 +628,16 @@ func (a *App) start() {
 		return
 	}
 
-	if err := a.http.Start(); err != nil {
-		logger.Error("Failed to start HTTP server: %v", err)
+	// Start HTTP server with or without SSL
+	var httpErr error
+	if a.sslEnabled {
+		httpErr = a.http.StartWithTLS(sslCert, sslKey)
+	} else {
+		httpErr = a.http.Start()
+	}
+
+	if httpErr != nil {
+		logger.Error("Failed to start HTTP server: %v", httpErr)
 		a.rtmp.Stop()
 		return
 	}
@@ -498,7 +645,11 @@ func (a *App) start() {
 	a.running = true
 	logger.Info("✅ Server started successfully")
 	logger.Info("📡 RTMP URL: rtmp://localhost%s/live/{stream_key}", a.rtmpAddr)
-	logger.Info("🎬 HLS URL:  http://localhost:%s/live/{stream_key}/index.m3u8", httpPort)
+	if a.sslEnabled {
+		logger.Info("🔒 HLS URL:  https://%s/live/{stream_key}/index.m3u8", displayHost)
+	} else {
+		logger.Info("🎬 HLS URL:  http://localhost:%s/live/{stream_key}/index.m3u8", httpPort)
+	}
 }
 
 func (a *App) stop() {

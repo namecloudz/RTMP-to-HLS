@@ -10,12 +10,22 @@ import (
 type Config struct {
 	HTTPPort string `json:"http_port"`
 	RTMPPort string `json:"rtmp_port"`
+
+	// SSL/TLS settings
+	SSLEnabled bool   `json:"ssl_enabled"`
+	SSLDomain  string `json:"ssl_domain"`
+	SSLCert    string `json:"ssl_cert"` // Path to certificate file
+	SSLKey     string `json:"ssl_key"`  // Path to private key file
 }
 
 // Default configuration
 var defaultConfig = Config{
-	HTTPPort: "8080",
-	RTMPPort: "1935",
+	HTTPPort:   "8080",
+	RTMPPort:   "1935",
+	SSLEnabled: false,
+	SSLDomain:  "",
+	SSLCert:    "cert.pem",
+	SSLKey:     "key.pem",
 }
 
 // GetConfigPath returns the path to the config file
@@ -44,6 +54,12 @@ func Load() Config {
 	}
 	if cfg.RTMPPort == "" {
 		cfg.RTMPPort = defaultConfig.RTMPPort
+	}
+	if cfg.SSLCert == "" {
+		cfg.SSLCert = defaultConfig.SSLCert
+	}
+	if cfg.SSLKey == "" {
+		cfg.SSLKey = defaultConfig.SSLKey
 	}
 
 	return cfg
