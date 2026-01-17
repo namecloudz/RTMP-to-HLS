@@ -9,11 +9,13 @@
 ## ✨ Features
 
 - **Pure Go** - No FFmpeg or external dependencies required
-- **Native Windows GUI** - Built with Gio for a modern, responsive interface
+- **Native Windows GUI** - Modern dark theme with Gio framework
 - **Multi-stream support** - Handle multiple RTMP streams simultaneously
+- **SSL/HTTPS** - Built-in TLS 1.2+ support with toggle
 - **Real-time monitoring** - Track streams, bitrate, and system resources
 - **H.264 + AAC** - Full support for video and audio transmuxing
-- **Config persistence** - Save your port settings across restarts
+- **Config persistence** - Save your settings across restarts
+- **CORS enabled** - Ready for web player integration
 
 ## 📸 Screenshot
 
@@ -25,8 +27,16 @@
 2. **Run** `rtmp_server.exe`
 3. **Configure** your RTMP and HTTP ports
 4. **Start** the server
-5. **Stream** from OBS/other software to: `rtmp://localhost:1935/live/{stream_key}`
+5. **Stream** from OBS to: `rtmp://localhost:1935/live/{stream_key}`
 6. **Play** the HLS stream: `http://localhost:8080/live/{stream_key}/index.m3u8`
+
+## 🔒 SSL/HTTPS Setup
+
+1. Place your SSL certificate files (`cert.pem`, `key.pem`) in the app directory
+2. Enable the **HTTPS toggle** in the GUI
+3. Enter your **domain** name
+4. Click **Start Server**
+5. Access via: `https://yourdomain.com/live/{stream_key}/index.m3u8`
 
 ## 🛠️ Build from Source
 
@@ -55,8 +65,8 @@ gostreamhls/
 │   ├── dashboard.go        # Stream dashboard panel
 │   └── logs.go             # Log viewer panel
 ├── server/
-│   ├── rtmp.go             # RTMP server using gortmplib
-│   ├── hls.go              # HLS HTTP server
+│   ├── rtmp.go             # RTMP server (gortmplib)
+│   ├── hls.go              # HTTP/HTTPS HLS server
 │   └── manager.go          # Multi-stream manager
 └── internal/
     ├── config/             # Configuration persistence
@@ -66,12 +76,16 @@ gostreamhls/
 
 ## ⚙️ Configuration
 
-Settings are automatically saved to `config.json`:
+Settings are saved to `config.json`:
 
 ```json
 {
   "http_port": "8080",
-  "rtmp_port": "1935"
+  "rtmp_port": "1935",
+  "ssl_enabled": false,
+  "ssl_domain": "",
+  "ssl_cert": "cert.pem",
+  "ssl_key": "key.pem"
 }
 ```
 
@@ -82,18 +96,45 @@ Settings are automatically saved to `config.json`:
 3. Server: `rtmp://localhost:1935/live`
 4. Stream Key: Choose any name (e.g., `mystream`)
 
+**Recommended Output Settings:**
+- Video Encoder: x264 or NVENC
+- Audio: AAC, 48kHz, Stereo
+- Keyframe Interval: 2 seconds
+
 ## 📡 Playback
 
-Use any HLS-compatible player:
-- **VLC**: Open Network Stream → `http://localhost:8080/live/mystream/index.m3u8`
-- **Web**: Use hls.js or Video.js with the HLS URL
+**VLC:**
+```
+Media → Open Network Stream → http://localhost:8080/live/mystream/index.m3u8
+```
+
+**Web (hls.js):**
+```html
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<video id="video" controls></video>
+<script>
+  var video = document.getElementById('video');
+  var hls = new Hls();
+  hls.loadSource('http://localhost:8080/live/mystream/index.m3u8');
+  hls.attachMedia(video);
+</script>
+```
+
+## 🔧 API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `/live/{key}/index.m3u8` | HLS playlist |
+| `/live/{key}/*.ts` | Media segments |
+| `/api/streams` | JSON list of active streams |
+| `/health` | Health check |
 
 ## 🔧 Technical Details
 
 - **RTMP Handling**: [gortmplib](https://github.com/bluenviron/gortmplib)
 - **HLS Muxing**: [gohlslib](https://github.com/bluenviron/gohlslib)
 - **GUI Framework**: [Gio](https://gioui.org/)
-- **Codec Support**: H.264 video, AAC audio (transmux only, no transcoding)
+- **Codec Support**: H.264 video, AAC audio (transmux only)
 
 ## 📝 License
 
